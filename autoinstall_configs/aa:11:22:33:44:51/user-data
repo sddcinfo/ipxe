@@ -1,0 +1,96 @@
+#cloud-config
+# This file contains the user configuration for the Ubuntu Autoinstall process.
+# It MUST be used with the "modprobe.blacklist=nvme" kernel parameter
+# in your PXE boot configuration.
+
+autoinstall:
+  version: 1
+  # Set the locale and keyboard layout for the system.
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+    variant: ""
+
+  # Define the initial user account.
+  identity:
+    hostname: node1
+    realname: "sysadmin"
+    username: sysadmin
+    password: "REPLACEME"
+
+  # Configure SSH, install the server, and add an authorized key for passwordless access.
+  ssh:
+    install-server: true
+    authorized-keys:
+      - "ssh-rsa REPLACE ME"
+    allow-pw: false
+
+  # Explicitly define where to install the bootloader (GRUB) for robustness.
+  grub:
+    device: disk-target
+
+  # With NVMe drives blacklisted at the kernel level, this simple LVM
+  # configuration targeting /dev/sda is now safe and reliable.
+  storage:
+    layout:
+      name: lvm
+    config:
+      # 1. Select the disk. /dev/sda is guaranteed to be the correct disk
+      #    because the NVMe drives have been hidden from the kernel.
+      - type: disk
+        id: disk-target
+        ptable: gpt
+        path: /dev/sda
+        wipe: superblock-recursive
+        preserve: false
+      # 2. Create a boot partition (EFI System Partition)
+      - type: partition
+        id: partition-esp
+        device: disk-target
+        size: 1G
+        flag: boot
+      # 3. Create a partition to hold the LVM data, using the rest of the disk
+      - type: partition
+        id: partition-lvm
+        device: disk-target
+        size: -1 # Use remaining space
+      # 4. Create the LVM Volume Group
+      - type: lvm_volgroup
+        id: vg-ubuntu
+        name: ubuntu-vg
+        devices:
+          - partition-lvm
+      # 5. Create a single Logical Volume for the root filesystem
+      - type: lvm_partition
+        id: lv-root
+        volgroup: vg-ubuntu
+        name: ubuntu-lv
+        size: 100% # Use all available space in the volume group
+      # 6. Format the filesystems
+      - type: format
+        id: format-esp
+        fstype: fat32
+        volume: partition-esp
+      - type: format
+        id: format-root
+        fstype: ext4
+        volume: lv-root
+      # 7. Mount the filesystems
+      - type: mount
+        id: mount-esp
+        path: /boot/efi
+        device: format-esp
+      - type: mount
+        id: mount-root
+        path: /
+        device: lv-root
+
+  packages:
+    - curl
+    - vim
+    - net-tools
+
+  late-commands:
+    - 'curl -s "http://10.10.1.1/index.php?action=callback&status=DONE&mac=__MAC_ADDRESS__"'
+
+  shutdown: reboot
