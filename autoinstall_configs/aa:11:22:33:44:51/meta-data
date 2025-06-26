@@ -1,0 +1,25 @@
+# meta-data
+# This file contains metadata for the cloud-init instance.
+# It defines the instance's identity on the network.
+
+instance-id: "node1-20240625"
+hostname: node1
+network:
+  version: 2
+  ethernets:
+    # This is the primary interface with a static IP, gateway, and DNS.
+    eno1:
+      dhcp4: no
+      addresses:
+        - 10.10.1.21/24
+      routes:
+        - to: default
+          via: 10.10.1.1
+      nameservers:
+        addresses: [10.10.1.1]
+    # This is the secondary interface with only a static IP.
+    eno3:
+      dhcp4: no
+      addresses:
+        - 10.10.2.21/24
+
